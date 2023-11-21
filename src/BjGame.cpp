@@ -98,7 +98,6 @@ Stats BjGame::Run()
 	deckPointer = 0;
 
 	// Shuffle the deck
-	// There might be a better way to do this, but std::shuffle should be fine
 	std::shuffle(deck.begin(), deck.end(), re);
 
 	// Decide where the cut card is
