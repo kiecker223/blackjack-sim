@@ -3,6 +3,7 @@
 #include <xmmintrin.h>
 #include <emmintrin.h>
 #include <immintrin.h>
+#include "Common.h"
 
 
 
@@ -106,29 +107,30 @@ struct Card
 
 static_assert(sizeof(Card) == 1, "sizeof(Card) isn't returning 1");
 
-#define NO_VTABLE __declspec(novtable)
-
-
-struct NO_VTABLE HandBase
+struct HandBase
 {
-	Card cards[25];
-	bool busted : 8;
-	uint8_t value;
-	uint8_t cardPtr;
-	uint8_t numAces;
-	uint8_t playerId;
-	uint16_t betAmount;
+	union {
+		struct {
+			Card cards[25];
+			bool busted : 8;
+			uint8_t value;
+			uint8_t cardPtr;
+			uint8_t numAces;
+			uint8_t playerId;
+			uint16_t betAmount;
+		};
+		__m128i v[2]; 
+	};
 
 	HandBase()
 	{
-		__m256i* p = reinterpret_cast<__m256i*>(this);
-		*p = _mm256_setzero_si256();
+		Reset();
 	}
 
 	inline void Reset()
 	{
-		__m256i* p = reinterpret_cast<__m256i*>(this);
-		*p = _mm256_setzero_si256();
+		v[0] = _mm_setzero_si128();
+		v[1] = _mm_setzero_si128();
 	}
 
 	void CalculateValue();
@@ -138,13 +140,6 @@ struct NO_VTABLE HandBase
 
 static_assert(sizeof(HandBase) == 32, "sizeof(HandBase) isn't returning 32");
 
-struct PlayerHand : public HandBase
-{
-};
+typedef HandBase PlayerHand;
+typedef HandBase DealerHand;
 
-struct DealerHand : public HandBase
-{
-};
-
-static_assert(sizeof(PlayerHand) == 32, "sizeof(PlayerHand) isn't returning 32");
-static_assert(sizeof(DealerHand) == 32, "sizeof(DealerHand) isn't returning 32");

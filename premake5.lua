@@ -2,13 +2,8 @@ workspace "BlackjackSim"
     configurations { "Debug", "Release" }
     platforms { "x64" }
 
-    -- This is a bug down here,
-    -- it thinks it needs a string but the docs
-    -- says this is valid input
-    -- system { "Windows", "Unix" }
-
-
     warnings "Default"
+ 
 
     filter "platforms:x64"
       architecture "x86_64"
@@ -55,8 +50,13 @@ project "BjSimulator"
     kind "ConsoleApp"
     files { "src/**.h", "src/**.cpp" }
 
-    filter "system:Windows"
+    filter "system:windows"
       links { "user32", "kernel32", "d3dcompiler" }
-    filter {}
+      defines { "_WIN32" }
+    filter "system:linux"
+      buildoptions { "-msse4.1" }
+      links { "pthread" }
+      defines { "_LINUX" }
+    filter {} 
 
     includedirs { "%{parentdir}" }

@@ -6,6 +6,7 @@
 #include <iostream>
 #include <random>
 #include <chrono>
+#include <cstring>
 
 
 
@@ -297,7 +298,7 @@ PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool can
 	// never be here
 	if (playerValue > 21)
 	{
-		__debugbreak();
+		DEBUG_BREAK;
 		return PlayerAction::Stand;
 	}
 

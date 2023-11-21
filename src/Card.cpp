@@ -1,4 +1,5 @@
 #include "Card.h"
+#include "Common.h"
 
 
 uint8_t Card::GetValue() const
@@ -6,7 +7,7 @@ uint8_t Card::GetValue() const
 	switch (face)
 	{
 	case Face::None:
-		__debugbreak();
+		DEBUG_BREAK;
 		break;
 	case Face::Two:
 		return 2;
@@ -40,7 +41,7 @@ float Card::GetRC() const
 	switch (face)
 	{
 	case Face::None:
-		__debugbreak();
+		DEBUG_BREAK;
 		return 0.0f;
 	case Face::Two:
 	case Face::Three:
@@ -71,7 +72,7 @@ void HandBase::CalculateValue()
 		switch (c.face)
 		{
 		case Face::None:
-			__debugbreak();
+			DEBUG_BREAK;
 			break;
 		case Face::Two:
 			value += 2;
@@ -134,7 +135,7 @@ bool HandBase::PullCard(uint8_t card)
 	switch (c.face)
 	{
 	case Face::None:
-		__debugbreak();
+		DEBUG_BREAK;
 		break;
 	case Face::Two:
 		value += 2;
