@@ -8,38 +8,44 @@
 #include <chrono>
 
 
+
+/*
+* I'm aware all the sidebet payouts vary from casino to casino
+* but I'm going to configure these for the casinos I play at 
+* to see if there's some sort of advantaged play here
+*/
+
+/*
+* Callback for if player is going to play lucky ladies at a given count
+*/
 uint32_t LL(Card dealerUpcards, Card cardA, Card cardB, uint32_t inBet)
 {
 	return 0;
 }
 
+/*
+* Callback for if player is going to play in between at a given count
+*/
 uint32_t InBetween(Card dealerUpcard, Card cardA, Card cardB, uint32_t inBet)
 {
 	return 0;
 }
 
+/*
+* Callback for if player is going to play in between at a given count
+*/
 uint32_t TwentyOnePlus3(Card dealerUpcard, Card cardA, Card cardB, uint32_t inBet)
 {
 	return 0;
 }
 
+/*
+* Callback for if player is going to play in between at a given count
+*/
 uint32_t MatchTheDealer(Card dealerUpcard, Card cardA, Card cardB, uint32_t inBet)
 {
 	return 0;
 }
-
-
-BjGame::BjGame(CounterSettings* cs, GameSettings* gs) :
-	_gs(gs),
-	_cs(cs)
-{
-	playerSeat = _gs->playerSpot;
-	numPlayers = _gs->numPlayers;
-	players[playerSeat].bankRoll = _cs->bankroll;
-	memcpy(ce, cs->entries.data(), cs->entries.size() * sizeof(CounterEntry));
-	counterEntryCount = cs->entries.size();
-}
-
 
 static const std::array<Card, 52> singleDeck = {
 	Card(Suit::Diamond, Face::Ace), Card(Suit::Diamond, Face::King), Card(Suit::Diamond, Face::Queen), Card(Suit::Diamond, Face::Jack), Card(Suit::Diamond, Face::Ten), Card(Suit::Diamond, Face::Nine), Card(Suit::Diamond, Face::Eight), Card(Suit::Diamond, Face::Seven), Card(Suit::Diamond, Face::Six), Card(Suit::Diamond, Face::Five), Card(Suit::Diamond, Face::Four), Card(Suit::Diamond, Face::Three), Card(Suit::Diamond, Face::Two),
@@ -48,33 +54,69 @@ static const std::array<Card, 52> singleDeck = {
 	Card(Suit::Clubs, Face::Ace), Card(Suit::Clubs, Face::King), Card(Suit::Clubs, Face::Queen), Card(Suit::Clubs, Face::Jack), Card(Suit::Clubs, Face::Ten), Card(Suit::Clubs, Face::Nine), Card(Suit::Clubs, Face::Eight), Card(Suit::Clubs, Face::Seven), Card(Suit::Clubs, Face::Six), Card(Suit::Clubs, Face::Five), Card(Suit::Clubs, Face::Four), Card(Suit::Clubs, Face::Three), Card(Suit::Clubs, Face::Two)
 };
 
+
+BjGame::BjGame(CounterSettings* cs, GameSettings* gs) :
+	_gs(gs),
+	_cs(cs),
+	handPointer(0),
+	rc(0.0f),
+	wongCount(0.0f),
+	wonging(false),
+	deckPointer(0)
+{
+	playerSeat = _gs->playerSpot;
+	numPlayers = _gs->numPlayers;
+	players[playerSeat].bankRoll = _cs->bankroll;
+	memcpy(ce, cs->entries.data(), cs->entries.size() * sizeof(CounterEntry));
+	counterEntryCount = cs->entries.size();
+	
+	deck.resize(_gs->numDecks * 52);
+
+	// Initialize the deck
+	for (uint32_t i = 0; i < _gs->numDecks; i++)
+	{
+		std::copy(singleDeck.begin(), singleDeck.end(), deck.begin() + (i * 52));
+	}
+}
+
+
+
 Stats BjGame::Run()
 {
 	Stats result = { };
 	handPointer = 0;
-	deck.resize(_gs->numDecks * 52);
 
+	// Reset all the player hands
 	for (int i = 0; i < 50; i++)
 	{
 		_ph[i].Reset();
 	}
 
-	for (uint32_t i = 0; i < _gs->numDecks; i++)
-	{
-		std::copy(singleDeck.begin(), singleDeck.end(), deck.begin() + (i * 52));
-	}
+	// Reset the deck pointer
+	deckPointer = 0;
 
+	// Shuffle the deck
+	// There might be a better way to do this, but std::shuffle should be fine
 	unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
 	std::shuffle(deck.begin(), deck.end(), std::default_random_engine(seed));
 
+	// Decide where the cut card is
+	// TODO: randomly add or subtract some arbitrary value to make the simulation
+	// closer to life. Mathematically this should be fine
 	int minCards = static_cast<int>(_gs->dealerCutCardApproxLocation * 52.0f);
 
-
+	// While the cut card hasn't come out
 	while (deck.size() > minCards)
 	{
+		// Get the true count
 		float actual_tc = rc / EstimateDecksRemaining();
+
+		// Round down to the nearest .5
+		// TODO: This might not be necessary due to how tc
+		// feeds into getting the bet
 		float tc = (floor((actual_tc * 2.0f) + 0.5) / 2.0f);
 
+		// Allocate our players' hands
 		for (uint32_t i = 0; i < numPlayers; i++)
 		{
 			players[i].hands[0] = &_ph[handPointer];
@@ -82,7 +124,7 @@ Stats BjGame::Run()
 			handPointer++;
 		}
 
-
+		// If its time to wong, wong out till the end of the shoe
 		if (_cs->wonging)
 		{
 			if (tc <= _cs->wongCount)
@@ -91,16 +133,20 @@ Stats BjGame::Run()
 			}
 		}
 
+		// Run the hand
 		HandResults res = RunHand(tc);
 
+		// If we ran out of bankroll
 		if (res.ruined)
 		{
+			// Reset our bankroll
 			result.ruinedCount += 1;
 			GetUserPlayer().bankRoll = _cs->bankroll;
 			std::cout << "Lost all bankroll" << std::endl;
 			break;
 		}
 
+		// Collect stats
 		if (res.win)
 		{
 			result.handsWon += 1;
@@ -115,7 +161,10 @@ Stats BjGame::Run()
 		}
 
 
+		// Reset the dealers hand
 		_dh.Reset();
+
+		// Reset the players' hands
 		for (int i = 0; i < numPlayers; i++)
 		{
 			Player& p = players[i];
@@ -128,65 +177,90 @@ Stats BjGame::Run()
 			}
 			p.numHands = 0;
 		}
+
+		// Reset our hand pointer
 		handPointer = 0;
 	}
 
-	deck.clear();
+	// Reset our running count
 	rc = 0.0f;
+
 	return result;
 }
 
 bool HasBlackjack(Card cardA, Card cardB)
 {
+	// If neither card is an ace, blackjack isn't possible
 	if (cardA.face != Face::Ace && cardB.face != Face::Ace)
 	{
 		return false;
 	}
 
+	// Collect the ace and the other card
 	Card ace = cardA.face == Face::Ace ? cardA : cardB;
 	Card other = cardA.face != Face::Ace ? cardA : cardB;
 
+	// Check if its a 10
 	switch (other.face)
 	{
 	case Face::Ten:
 	case Face::Jack:
 	case Face::Queen:
 	case Face::King:
+		// blackjack
 		return true;
 	}
+
+	// No blackjack
 	return false;
 }
 
+/*
+* Based on the true count get our bet 
+*/
 int BjGame::GetBetAmount(float tc, int min, BetLocation bl)
 {
 	CounterEntry* selectedCE = nullptr;
 	for (int i = 0; i < counterEntryCount; i++)
 	{
+		// If the true count is in between two different entries (plus some slack)
+		// select that counter entry and assign our bet
 		if (tc > ce[i].tc - 0.001f && tc < ce[i + 1].tc + 0.001f && ce[i].betLocation == bl && ce[i + 1].betLocation == bl)
 		{
 			selectedCE = &ce[i];
 		}
 	}
+	
+	// If we don't have an entry for this tc, then just bet the table min
 	if (selectedCE == nullptr)
 	{
 		return min;
 	}
+
+	// Get the bet amount
 	return static_cast<int>(static_cast<float>(min) * selectedCE->betAmount);
 }
 
+/*
+* Get the player's action based on their hand and basic strategy
+*/
 PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool canSplit)
 {
+	// Check for aces
 	bool hasAces = false;
 	if (ph->numAces > 0)
 	{
 		hasAces = true;
 	}
 
+	// Check the various conditions that would affect
+	// what we're doing
 	bool canDouble = ph->cardPtr == 2;
 	const bool starting = canDouble;
 	bool canSurrender = ph->cardPtr == 2 && _gs->surrenderAvailable;
 	bool playerSameFace = false;
 
+	// If aces, split
 	if (starting && ph->cards[0].face == Face::Ace && ph->cards[1].face == Face::Ace && canSplit)
 	{
 		return PlayerAction::Split;
@@ -194,6 +268,7 @@ PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool can
 
 	Card nonAce;
 
+	// If we have an ace get our non-ace card
 	if (hasAces && starting && canSplit)
 	{
 		nonAce = ph->cards[0].face != Face::Ace ? ph->cards[0] : ph->cards[1];
@@ -203,6 +278,7 @@ PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool can
 		if (ph->cards[0].face == ph->cards[1].face)
 		{
 			playerSameFace = true;
+			// Cover specific case where we never split 5s
 			if (ph->cards[0].face == Face::Five)
 			{
 				playerSameFace = false;
@@ -210,20 +286,24 @@ PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool can
 		}
 	}
 
+	// Check which switch-case statement to fall under
 	uint32_t code = (starting ? 1 : 0) + (hasAces ? 2 : 0) + ((playerSameFace && canSplit) ? 4 : 0);
 
+	// Get the player's hand value
 	uint8_t playerValue = ph->value;
 
+	// If the dealer has busted
+	// then __debugbreak because that's a bug and we should
+	// never be here
 	if (playerValue > 21)
 	{
 		__debugbreak();
 		return PlayerAction::Stand;
 	}
 
-	// Hard totals
 	switch (code)
 	{
-	case 1: // Starting, no aces and no splits
+	case 1: // Starting, no aces and no splits, AKA: can double or surrender
 	{
 		switch (dh.cards[1].face)
 		{
@@ -736,7 +816,7 @@ PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool can
 			break;
 		}
 	} break;
-	default:
+	default: // No double, no surrender, no split
 	{
 		switch (dh.cards[1].face)
 		{
@@ -940,6 +1020,7 @@ PlayerAction BjGame::GetPlayerActionH17(DealerHand& dh, PlayerHand* ph, bool can
 	}
 
 	// We shouldn't get here
+	// but evidently we do
 	return PlayerAction::Stand;
 }
 
@@ -948,12 +1029,18 @@ PlayerAction BjGame::GetPlayerActionS17(DealerHand& dh, PlayerHand* ph, bool can
 	return PlayerAction::Stand;
 }
 
+/*
+* Check if the dealer draws
+*/
 bool BjGame::DealerDraws(DealerHand& dh)
 {
+	// Do we hit soft 17?
 	if (_gs->hitSoft17)
 	{
+		// If the dealer has a 17 and they have more than one ace
 		if (dh.value == 17 && dh.numAces > 0)
 		{
+			// Get just the soft total
 			uint8_t cardVal = 0;
 			for (int i = 0; i < dh.cardPtr; i++)
 			{
@@ -961,19 +1048,25 @@ bool BjGame::DealerDraws(DealerHand& dh)
 				if (c.face != Face::Ace)
 					cardVal += c.GetValue();
 			}
+
+			// If its a soft 17
 			if (cardVal + dh.numAces == 7)
 			{
+				// Hit
 				return true;
 			}
 		}
+		// Hit anyway
 		if (dh.value < 17)
 		{
 			return true;
 		}
+		// Dealer stands
 		return false;
 	}
 	else
 	{
+		// Pretty easy if we stand on all 17s
 		if (dh.value >= 17)
 		{
 			return false;
@@ -982,39 +1075,57 @@ bool BjGame::DealerDraws(DealerHand& dh)
 	return true;
 }
 
+/*
+* Pull a card from the deck
+*/
 Card BjGame::DrawCard()
 {
-	Card result = deck.back();
-	deck.pop_back();
+	// Pull a card
+	Card result = deck[deckPointer];
+	deckPointer++;
+
+	// Get the running count
 	rc += result.GetRC();
+
 	return result;
 }
 
+/*
+* Return approximately how many decks are remaining 
+* to closest .5 (how humans would about estimate it)
+*/
 float BjGame::EstimateDecksRemaining() const
 {
 	float decksRemaining = static_cast<float>(deck.size()) / 52.0f;
 	return (floor((decksRemaining * 2.0f) + 0.5) / 2.0f);
 }
 
+/*
+* Run a hand of blackjack
+*/
 HandResults BjGame::RunHand(float tc)
 {
 	HandResults result = {};
+
 	// Get the player's bet
 	int bet = GetBetAmount(tc, _gs->tableMinimum, BetLocation::MainGame);
 
+	// If the bet is greater than our bankroll
 	if (bet > players[_gs->playerSpot].bankRoll)
 	{
+		// We can't make the bet, quit out
 		result.win = false;
 		result.ruined = true;
 		return result;
 	}
 
+	// Everyone bets the AP optimal bet
 	for (int i = 0; i < numPlayers; i++)
 	{
 		players[i].hands[0]->betAmount = static_cast<uint16_t>(bet);
 	}
 
-	// First step deal all the cards
+	// Deal all the cards
 	for (int i = 0; i < 2; i++)
 	{
 		_dh.PullCard(DrawCard());
@@ -1036,6 +1147,7 @@ HandResults BjGame::RunHand(float tc)
 			Player& p = players[i];
 			for (int j = 0; j < p.numHands; j++)
 			{
+				// If the player has blackjack
 				if (HasBlackjack(p.hands[j]->cards[0], p.hands[j]->cards[1]))
 				{
 					// push
@@ -1048,6 +1160,7 @@ HandResults BjGame::RunHand(float tc)
 				}
 				else
 				{
+					// Loss
 					if (i == playerSeat)
 					{
 						result.win = false;
@@ -1061,6 +1174,7 @@ HandResults BjGame::RunHand(float tc)
 	}
 
 	// Check player blackjack
+	// TODO: Remember the prior check for extra speed
 	for (int i = 0; i < numPlayers; i++)
 	{
 		Player& p = players[i];
@@ -1076,48 +1190,62 @@ HandResults BjGame::RunHand(float tc)
 		}
 	}
 
-	// Players have played their hands;
+	// Players play their hands, all according to 
+	// basic strategy
 	for (int i = 0; i < numPlayers; i++)
 	{
 		Player& p = players[i];
 		uint32_t splitCount = 0;
 
+		// What
 		bool splitAces = false;
 		if (p.hands[0] != nullptr)
 		{
 			splitAces = p.hands[0]->cards[0].face == Face::Ace && p.hands[0]->cards[1].face == Face::Ace;
 		}
 
+		// Foreach hand for a player
 		for (int j = 0; j < p.numHands; j++)
 		{
+			// if the hand is null it likely busted
 			if (p.hands[j] == nullptr)
 			{
 				continue;
 			}
 
+			// Setup our local vars
 			bool canContinue = true;
-
 			PlayerAction act = PlayerAction::None;
 			bool playResult = false;
+
+			// Play the hand
 			do {
+				// Get the player action
 				act = GetPlayerActionH17(_dh, p.hands[j], splitCount < _gs->numResplits);
 				switch (act)
 				{
 				case PlayerAction::Hit:
+					// Hit, draw a card
 					playResult = p.hands[j]->PullCard(DrawCard());
 					break;
 				case PlayerAction::Double:
+					// Double, draw a card and dont allow replay
 					playResult = p.hands[j]->PullCard(DrawCard());
 					p.hands[j]->betAmount *= 2;
+					canContinue = false;
 					break;
 				case PlayerAction::Stand:
+					// Stand is stand
 					break;
 				case PlayerAction::Surrender:
+					// Surrender, lose half our bet, and give up our hand
 					p.bankRoll -= bet / 2;
 					p.hands[j]->Reset();
 					p.hands[j] = nullptr;
 					break;
 				case PlayerAction::Split:
+					// Split, take our cards and create another hand from it
+					// then put a bet on each one
 					Card newHandStart = p.hands[j]->cards[1];
 					p.hands[j]->cards[1] = Card();
 					p.hands[j]->cardPtr--;
@@ -1130,10 +1258,12 @@ HandResults BjGame::RunHand(float tc)
 					p.hands[p.numHands]->betAmount = bet;
 					p.hands[j]->PullCard(DrawCard());
 
+					// Update the important stuff
 					handPointer++;
 					p.numHands++;
 					splitCount++;
 
+					// Check if we can resplit
 					if (splitAces && !_gs->rehitAces)
 					{
 						canContinue = false;
@@ -1142,8 +1272,12 @@ HandResults BjGame::RunHand(float tc)
 					break;
 				}
 
+				// If we busted, break
 				if (playResult) break;
 			} while ((act != PlayerAction::Stand && act != PlayerAction::Surrender && act != PlayerAction::Double) && canContinue);
+
+			// If we busted clear out our hand
+			// and take our money
 			if (playResult)
 			{
 				p.hands[j]->busted = true;
@@ -1157,12 +1291,16 @@ HandResults BjGame::RunHand(float tc)
 
 	bool dealerBust = false;
 
+	// Dealer plays
+	// Check if they draw
 	while (DealerDraws(_dh))
 	{
 		dealerBust = _dh.PullCard(DrawCard());
 
+		// Check if the dealer busted after drawing
 		if (dealerBust)
 		{
+			// If they did, everyone with a hand wins
 			for (int i = 0; i < numPlayers; i++)
 			{
 				Player& p = players[i];

@@ -7,6 +7,7 @@ uint8_t Card::GetValue() const
 	{
 	case Face::None:
 		__debugbreak();
+		break;
 	case Face::Two:
 		return 2;
 	case Face::Three:

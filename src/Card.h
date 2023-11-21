@@ -17,7 +17,7 @@ enum class Suit : uint8_t
 
 enum class Face : uint8_t 
 {
-	None = 0,
+	None = 1,
 	Two = 2,
 	Three = 3,
 	Four = 4,
@@ -39,6 +39,7 @@ struct Card
 		v(0)
 	{ }
 
+	// Constructors
 	Card(uint8_t val)
 	{
 		v = val;
@@ -55,6 +56,8 @@ struct Card
 	{
 	}
 
+
+	// operators
 	inline Card& operator = (uint8_t val)
 	{
 		v = val;
@@ -72,14 +75,23 @@ struct Card
 		return v;
 	}
 
+	/*
+	* Check if we have all valid stuff
+	*/
 	inline bool IsValid() const
 	{
 		return static_cast<uint8_t>(suit) != 0 && static_cast<uint8_t>(suit) < 5 &&
 			static_cast<uint8_t>(face) != 0 && static_cast<uint8_t>(face) < 15;
 	}
 
+	/*
+	* Get the actual value of the card
+	*/
 	uint8_t GetValue() const;
 
+	/*
+	* 
+	*/
 	float GetRC() const;
 
 	union {

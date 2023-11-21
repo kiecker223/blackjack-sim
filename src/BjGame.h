@@ -75,6 +75,7 @@ private:
 	Player players[6];
 
 	std::vector<Card> deck;
+	uint32_t deckPointer;
 
 	uint32_t numPlayers;
 	uint32_t playerSeat;
