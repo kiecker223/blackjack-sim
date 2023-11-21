@@ -80,6 +80,7 @@ BjGame::BjGame(CounterSettings* cs, GameSettings* gs) :
 	}
 }
 
+static std::default_random_engine re(std::chrono::system_clock::now().time_since_epoch().count());
 
 
 Stats BjGame::Run()
@@ -98,16 +99,17 @@ Stats BjGame::Run()
 
 	// Shuffle the deck
 	// There might be a better way to do this, but std::shuffle should be fine
-	unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
-	std::shuffle(deck.begin(), deck.end(), std::default_random_engine(seed));
+	std::shuffle(deck.begin(), deck.end(), re);
 
 	// Decide where the cut card is
 	// TODO: randomly add or subtract some arbitrary value to make the simulation
 	// closer to life. Mathematically this should be fine
 	int minCards = static_cast<int>(_gs->dealerCutCardApproxLocation * 52.0f);
 
+	int deckSize = deck.size();
+
 	// While the cut card hasn't come out
-	while (deckPointer < minCards)
+	while (deckPointer < deckSize - minCards)
 	{
 		// Get the true count
 		float actual_tc = rc / EstimateDecksRemaining();
@@ -143,7 +145,7 @@ Stats BjGame::Run()
 			// Reset our bankroll
 			result.ruinedCount += 1;
 			GetUserPlayer().bankRoll = _cs->bankroll;
-			std::cout << "Lost all bankroll" << std::endl;
+			//std::cout << "Lost all bankroll" << std::endl;
 			break;
 		}
 
