@@ -106,7 +106,7 @@ Stats BjGame::Run()
 	int minCards = static_cast<int>(_gs->dealerCutCardApproxLocation * 52.0f);
 
 	// While the cut card hasn't come out
-	while (deck.size() > minCards)
+	while (deckPointer < minCards)
 	{
 		// Get the true count
 		float actual_tc = rc / EstimateDecksRemaining();
